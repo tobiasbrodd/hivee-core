@@ -1,17 +1,18 @@
 package main
 
 import (
-	"crypto/tls"
-	"crypto/x509"
 	"fmt"
-	"io/ioutil"
+	"os"
+	"os/signal"
+	"syscall"
 	"time"
 
 	mqtt "github.com/eclipse/paho.mqtt.golang"
 )
 
 var messagePubHandler mqtt.MessageHandler = func(client mqtt.Client, msg mqtt.Message) {
-	fmt.Printf("Received message: %s from topic: %s\n", msg.Payload(), msg.Topic())
+	dt := time.Now().Format("2006-01-02 15:04:05")
+	fmt.Printf("%s Received message: %s from topic: %s\n", dt, msg.Payload(), msg.Topic())
 }
 
 var connectHandler mqtt.OnConnectHandler = func(client mqtt.Client) {
@@ -20,17 +21,6 @@ var connectHandler mqtt.OnConnectHandler = func(client mqtt.Client) {
 
 var connectLostHandler mqtt.ConnectionLostHandler = func(client mqtt.Client, err error) {
 	fmt.Printf("Connection lost: %v", err)
-}
-
-func getTLSConfig() *tls.Config {
-	certPool := x509.NewCertPool()
-	ca, err := ioutil.ReadFile("mosquitto.org.crt")
-	if err != nil {
-		panic(err.Error())
-	}
-
-	certPool.AppendCertsFromPEM(ca)
-	return &tls.Config{RootCAs: certPool}
 }
 
 func subscribe(client mqtt.Client, topic string) {
@@ -45,16 +35,18 @@ func publish(client mqtt.Client, topic string, payload string) {
 }
 
 func main() {
-	broker := "127.0.0.1"
-	port := 1883
+	keepAlive := make(chan os.Signal, 1)
+	signal.Notify(keepAlive, os.Interrupt, syscall.SIGTERM)
+
+	broker := "localhost"
+	port := 8883
 
 	options := mqtt.NewClientOptions()
-	options.AddBroker(fmt.Sprintf("tcp://%s:%d", broker, port))
-	options.SetClientID("hivee_core")
+	options.AddBroker(fmt.Sprintf("mqtt://%s:%d", broker, port))
+	options.SetClientID("hivee-core")
 	options.SetDefaultPublishHandler(messagePubHandler)
 	options.OnConnect = connectHandler
 	options.OnConnectionLost = connectLostHandler
-	options.SetTLSConfig(getTLSConfig())
 
 	client := mqtt.NewClient(options)
 	token := client.Connect()
@@ -63,14 +55,9 @@ func main() {
 		panic(token.Error())
 	}
 
-	topic := "topic/hivee"
-	subscribe(client, topic)
+	hivee := "hivee"
+	subscribe(client, fmt.Sprintf("zigbee2mqtt/%s", hivee))
 
-	for i := 0; i < 5; i++ {
-		payload := fmt.Sprintf("Payload %d", i)
-		publish(client, topic, payload)
-		time.Sleep(time.Second)
-	}
-
+	<-keepAlive
 	client.Disconnect(1000)
 }
