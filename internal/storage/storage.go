@@ -7,27 +7,43 @@ import (
 	influxdb2 "github.com/influxdata/influxdb-client-go/v2"
 	"github.com/influxdata/influxdb-client-go/v2/api"
 	log "github.com/sirupsen/logrus"
+	"github.com/tobiasbrodd/hivee-core/internal/coretypes"
 )
 
 type Storage struct {
-	Client *influxdb2.Client
-	writer *api.WriteAPI
+	Influx       *influxdb2.Client
+	Organization string
 }
 
-func (storage Storage) StoreMeasure(measurement string, source string, value float64, timestamp int64) {
-	log.Infof("Storing measurement %s: %f\n", measurement, value)
+func (storage Storage) StoreAqaraMeasure(measurement string, measure coretypes.AqaraMeasure) {
+	log.Infof("Storing measurement %s\n", measurement)
+
+	writer := storage.getWriter("pibee")
 	p := influxdb2.NewPointWithMeasurement(measurement).
-		AddTag("source", source).
-		AddField("value", value).
-		SetTime(time.Unix(timestamp, 0))
-	(*storage.writer).WritePoint(p)
-	(*storage.writer).Flush()
+		AddField("battery", measure.Battery).
+		AddField("humidity", measure.Humidity).
+		AddField("pressure", measure.Pressure).
+		AddField("temperature", measure.Temperature).
+		AddField("voltage", measure.Voltage).
+		SetTime(time.Unix(measure.Timestamp, 0))
+	(*writer).WritePoint(p)
+	(*writer).Flush()
 }
 
-func Initialize(authToken string, host string, port int, org string, bucket string) (storage Storage) {
-	client := influxdb2.NewClient(fmt.Sprintf("http://%s:%d", host, port), authToken)
-	writer := client.WriteAPI(org, bucket)
-	s := Storage{Client: &client, writer: &writer}
+func (storage Storage) StoreMeasure(measurement string, measure coretypes.Measure) {
+	log.Infof("Storing measurement %s\n", measurement)
+
+	writer := storage.getWriter("hivee")
+	p := influxdb2.NewPointWithMeasurement(measurement).
+		AddTag("location", measure.Location).
+		AddField("value", measure.Value).
+		SetTime(time.Unix(measure.Timestamp, 0))
+	(*writer).WritePoint(p)
+	(*writer).Flush()
+}
+
+func (storage Storage) getWriter(bucket string) *api.WriteAPI {
+	writer := (*storage.Influx).WriteAPI(storage.Organization, bucket)
 	errorsCh := writer.Errors()
 	go func() {
 		for err := range errorsCh {
@@ -35,5 +51,16 @@ func Initialize(authToken string, host string, port int, org string, bucket stri
 		}
 	}()
 
-	return s
+	return &writer
+}
+
+func New(authToken string, host string, port int, org string) Storage {
+	client := influxdb2.NewClient(fmt.Sprintf("http://%s:%d", host, port), authToken)
+	storage := Storage{Influx: &client, Organization: org}
+
+	return storage
+}
+
+func (storage Storage) Close() {
+	(*storage.Influx).Close()
 }

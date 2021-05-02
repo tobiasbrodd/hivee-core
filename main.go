@@ -42,14 +42,17 @@ func main() {
 	keepAlive := make(chan os.Signal, 1)
 	signal.Notify(keepAlive, os.Interrupt, syscall.SIGTERM)
 
+	formatter := &log.TextFormatter{TimestampFormat: "2006-01-02 15:04:05", FullTimestamp: true}
+	log.SetFormatter(formatter)
+
 	var c config
 	c.getConfig()
 
-	store := storage.Initialize(c.Influx.Token, c.Influx.Host, c.Influx.Port, "Hivee", "hivee-test")
-	mqttClient := client.Initialize(c.MQTT.Host, c.MQTT.Port, "hivee-core", store)
-	client.Connect(mqttClient)
+	store := storage.New(c.Influx.Token, c.Influx.Host, c.Influx.Port, "Hivee")
+	broker := client.New(c.MQTT.Host, c.MQTT.Port, "hivee-core", store)
+	broker.Connect()
 
 	<-keepAlive
-	(*mqttClient).Disconnect(1000)
-	(*store.Client).Close()
+	broker.Disconnect()
+	store.Close()
 }
