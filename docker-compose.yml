@@ -1,0 +1,8 @@
+version: '3.9'
+
+services:
+  hivee-core:
+    container_name: hivee-core
+    build:
+      context: .
+      dockerfile: Dockerfile
