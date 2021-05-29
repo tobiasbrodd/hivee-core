@@ -15,7 +15,7 @@ type Storage struct {
 	Organization string
 }
 
-func (storage Storage) StoreAqaraMeasure(measurement string, measure coretypes.AqaraMeasure) {
+func (storage *Storage) StoreAqaraMeasure(measurement string, measure coretypes.AqaraMeasure) {
 	log.Infof("Storing measurement %s\n", measurement)
 
 	writer := storage.getWriter("pibee")
@@ -30,7 +30,7 @@ func (storage Storage) StoreAqaraMeasure(measurement string, measure coretypes.A
 	(*writer).Flush()
 }
 
-func (storage Storage) StoreMeasure(measurement string, measure coretypes.Measure) {
+func (storage *Storage) StoreMeasure(measurement string, measure coretypes.Measure) {
 	log.Infof("Storing measurement %s\n", measurement)
 
 	writer := storage.getWriter("hivee")
@@ -42,7 +42,7 @@ func (storage Storage) StoreMeasure(measurement string, measure coretypes.Measur
 	(*writer).Flush()
 }
 
-func (storage Storage) getWriter(bucket string) *api.WriteAPI {
+func (storage *Storage) getWriter(bucket string) *api.WriteAPI {
 	writer := (*storage.Influx).WriteAPI(storage.Organization, bucket)
 	errorsCh := writer.Errors()
 	go func() {
@@ -54,9 +54,9 @@ func (storage Storage) getWriter(bucket string) *api.WriteAPI {
 	return &writer
 }
 
-func New(authToken string, host string, port int, org string) Storage {
+func New(authToken string, host string, port int, org string) *Storage {
 	client := influxdb2.NewClient(fmt.Sprintf("http://%s:%d", host, port), authToken)
-	storage := Storage{Influx: &client, Organization: org}
+	storage := &Storage{Influx: &client, Organization: org}
 
 	return storage
 }

@@ -20,7 +20,7 @@ type messageHandler func(mqtt.Client, string, []byte)
 
 var channels = make(map[string]messageHandler)
 var locations = make(map[string]string)
-var store storage.Storage
+var store *storage.Storage
 
 func publishMessage(mqttClient mqtt.Client, message interface{}, topic string) {
 	payload, err := json.Marshal(message)
@@ -116,7 +116,7 @@ func publish(mqttClient *mqtt.Client, topic string, payload []byte, qos byte) {
 	log.Infof("Published to topic: %s\n", topic)
 }
 
-func New(host string, port int, clientID string, initStore storage.Storage) Client {
+func New(host string, port int, clientID string, initStore *storage.Storage) Client {
 	// mqtt.ERROR = log.New(os.Stdout, "[ERROR] ", 0)
 	// mqtt.CRITICAL = log.New(os.Stdout, "[CRIT] ", 0)
 	// mqtt.WARN = log.New(os.Stdout, "[WARN] ", 0)
