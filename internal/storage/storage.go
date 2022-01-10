@@ -15,7 +15,7 @@ type Storage struct {
 	Organization string
 }
 
-func (storage *Storage) StoreAqaraMeasure(measurement string, measure coretypes.AqaraMeasure) {
+func (storage *Storage) StoreAqaraTemp(measurement string, measure coretypes.AqaraTemp) {
 	log.Infof("Storing measurement %s\n", measurement)
 
 	writer := storage.getWriter("pibee")
@@ -23,6 +23,20 @@ func (storage *Storage) StoreAqaraMeasure(measurement string, measure coretypes.
 		AddField("battery", measure.Battery).
 		AddField("humidity", measure.Humidity).
 		AddField("pressure", measure.Pressure).
+		AddField("temperature", measure.Temperature).
+		AddField("voltage", measure.Voltage).
+		SetTime(time.Unix(measure.Timestamp, 0))
+	(*writer).WritePoint(p)
+	(*writer).Flush()
+}
+
+func (storage *Storage) StoreAqaraDoor(measurement string, measure coretypes.AqaraDoor) {
+	log.Infof("Storing measurement %s\n", measurement)
+
+	writer := storage.getWriter("pibee")
+	p := influxdb2.NewPointWithMeasurement(measurement).
+		AddField("battery", measure.Battery).
+		AddField("contact", measure.Contact).
 		AddField("temperature", measure.Temperature).
 		AddField("voltage", measure.Voltage).
 		SetTime(time.Unix(measure.Timestamp, 0))

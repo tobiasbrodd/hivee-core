@@ -37,8 +37,8 @@ func getSource(topic string) string {
 	return srcs[len(srcs)-1]
 }
 
-var handleAqaraMeasure messageHandler = func(mqttClient mqtt.Client, topic string, payload []byte) {
-	var message coretypes.AqaraMeasure
+var handleAqaraTemp messageHandler = func(mqttClient mqtt.Client, topic string, payload []byte) {
+	var message coretypes.AqaraTemp
 	if err := json.Unmarshal(payload, &message); err != nil {
 		log.Errorf("Cannot unmarshal: %v\n", err)
 		return
@@ -47,7 +47,7 @@ var handleAqaraMeasure messageHandler = func(mqttClient mqtt.Client, topic strin
 	message.Timestamp = time.Now().Unix()
 
 	src := getSource(topic)
-	store.StoreAqaraMeasure(src, message)
+	store.StoreAqaraTemp(src, message)
 
 	location, ok := locations[topic]
 	if !ok {
@@ -74,6 +74,38 @@ var handleAqaraMeasure messageHandler = func(mqttClient mqtt.Client, topic strin
 	pressure.Location = location
 	publishMessage(mqttClient, pressure, "pressure")
 	store.StoreMeasure("pressure", pressure)
+}
+
+var handleAqaraDoor messageHandler = func(mqttClient mqtt.Client, topic string, payload []byte) {
+	var message coretypes.AqaraDoor
+	if err := json.Unmarshal(payload, &message); err != nil {
+		log.Errorf("Cannot unmarshal: %v\n", err)
+		return
+	}
+
+	message.Timestamp = time.Now().Unix()
+
+	src := getSource(topic)
+	store.StoreAqaraDoor(src, message)
+
+	location, ok := locations[topic]
+	if !ok {
+		location = "Unknown"
+	}
+
+	var contact coretypes.Measure
+	contact.Value = message.Contact
+	contact.Timestamp = message.Timestamp
+	contact.Location = location
+	publishMessage(mqttClient, contact, "contact")
+	store.StoreMeasure("contact", contact)
+
+	var temperature coretypes.Measure
+	temperature.Value = message.Temperature
+	temperature.Timestamp = message.Timestamp
+	temperature.Location = location
+	publishMessage(mqttClient, temperature, "temperature")
+	store.StoreMeasure("temperature", temperature)
 }
 
 var messagePubHandler mqtt.MessageHandler = func(mqttClient mqtt.Client, msg mqtt.Message) {
@@ -124,8 +156,14 @@ func New(host string, port int, clientID string, initStore *storage.Storage) Cli
 
 	store = initStore
 
-	channels["zigbee2mqtt/aqara_temperature"] = handleAqaraMeasure
-	locations["zigbee2mqtt/aqara_temperature"] = "Indoor"
+	channels["zigbee2mqtt/aqara_temp_1"] = handleAqaraTemp
+	locations["zigbee2mqtt/aqara_temp_1"] = "Indoor"
+
+	channels["zigbee2mqtt/aqara_temp_2"] = handleAqaraTemp
+	locations["zigbee2mqtt/aqara_temp_2"] = "Extra"
+
+	channels["zigbee2mqtt/aqara_door_1"] = handleAqaraDoor
+	locations["zigbee2mqtt/aqara_door_1"] = "Door"
 
 	options := mqtt.NewClientOptions()
 	options.AddBroker(fmt.Sprintf("mqtt://%s:%d", host, port))
@@ -154,6 +192,7 @@ func (client Client) Connect() mqtt.Token {
 	subscribe(client.MQTT, "hivee/temperature", 1)
 	subscribe(client.MQTT, "hivee/humidity", 1)
 	subscribe(client.MQTT, "hivee/pressure", 1)
+	subscribe(client.MQTT, "hivee/contact", 1)
 
 	return token
 }
